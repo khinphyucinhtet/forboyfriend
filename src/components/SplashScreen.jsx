@@ -1,0 +1,2 @@
+import "./SplashScreen.css";
+export default function SplashScreen() { return <main className="splash-screen"><span className="float-heart heart-one">♡</span><span className="float-heart heart-two">♡</span><div className="splash-mark"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 83S12 60 12 34C12 10 42 7 50 32 58 7 88 10 88 34 88 60 50 83 50 83Z"/></svg></div><h1>ForBoyfriend <span>♡</span></h1><p>our little world, drawn together</p><div className="loading-track"><i/></div><small>Opening our canvas...</small></main> }

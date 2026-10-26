@@ -1,0 +1,2 @@
+import WidgetPreview from "./WidgetPreview";
+export default function HomeScreenWidget({onOpen}) { return <WidgetPreview title="2. Home Screen Widget"><button className="phone home-phone" onClick={onOpen} aria-label="Open drawing canvas from the home screen preview"><div className="mini-app-grid">{["Photos","Camera","Notes","Music"].map((x,i)=><span key={x}><i>{["✿","◉","▤","♫"][i]}</i>{x}</span>)}</div><div className="widget-card"><div className="widget-art">♡</div><b>ForBoyfriend</b><span>Tap to open</span></div><div className="dock">●　●　●　●</div></button></WidgetPreview> }

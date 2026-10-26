@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "ForBoyfriend — our little world",
+  "short_name": "ForBoyfriend",
+  "description": "A little shared drawing canvas for two.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fff6f8",
+  "theme_color": "#fff6f8",
+  "icons": [
+    { "src": "./pwa-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

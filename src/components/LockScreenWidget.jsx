@@ -1,0 +1,2 @@
+import WidgetPreview from "./WidgetPreview";
+export default function LockScreenWidget({latest,onOpen}) { return <WidgetPreview title="1. Lock Screen Widget"><button className="phone lock-phone" onClick={onOpen} aria-label="Open our drawing canvas from the lock screen preview"><div className="phone-time">9:41<small>Monday, April 8</small></div><div className="widget-card"><div className="widget-art">♡</div><b>ForBoyfriend ♡</b><span>Tap to open</span>{latest&&<img src={latest} alt="Latest saved drawing"/>}</div><small>Tap to open our canvas</small></button></WidgetPreview> }

@@ -1,0 +1,8 @@
+import DrawingCanvas from "./DrawingCanvas";
+import DrawingToolbar from "./DrawingToolbar";
+import ClearDialog from "./ClearDialog";
+import SaveDialog from "./SaveDialog";
+import Toast from "./Toast";
+import { useState } from "react";
+export default function DrawingScreen({drawing,onBack}) { const [dialog,setDialog]=useState(""),[toast,setToast]=useState("");const save=()=>{if(drawing.save())setDialog("save");else setToast("Nothing to save yet")};const clear=()=>{drawing.clear();setDialog("");setToast("Canvas cleared")};return <main className="app"><header className="topbar"><button className="back-button" aria-label="Back to home" onClick={onBack}>‹</button><div className="brand"><div><h1>ForBoyfriend <span>♡</span></h1><p>our little world, drawn together</p></div></div><button className="settings-button" aria-label="Canvas settings" onClick={()=>setToast("Canvas is saved on this device")}>⚙</button><div className="connection"><i/>Local canvas</div></header><section className="drawing-page"><div className="board-heading"><div><h3>Our shared canvas <span>♡</span></h3><p>Two hearts, one little whiteboard.</p></div><span className="live-badge"><i/>Ready to draw</span></div><DrawingToolbar drawing={drawing} onClear={()=>setDialog("clear")} onSave={save}/><DrawingCanvas drawing={drawing}/><div className="board-footer"><span>♡ made for two</span><span>Saved on this device</span></div></section><ClearDialog open={dialog==="clear"} onClose={()=>setDialog("")} onConfirm={clear}/><SaveDialog open={dialog==="save"} onClose={()=>setDialog("")} onDownload={()=>{drawing.downloadPng();setDialog("");}}/><Toast message={toast} onDismiss={()=>setToast("")}/></main> }
+

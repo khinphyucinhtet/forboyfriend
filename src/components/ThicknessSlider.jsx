@@ -1,0 +1,1 @@
+export default function ThicknessSlider({value,onChange}) { return <div className="thickness"><label htmlFor="brush-size">Thickness</label><input id="brush-size" type="range" min="1" max="30" value={value} onChange={e=>onChange(Number(e.target.value))}/><span>{value}</span></div> }
