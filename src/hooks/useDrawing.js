@@ -4,6 +4,7 @@ import { drawingService } from "../services/drawingService";
 const DRAWING_KEY = "forboyfriend-drawing-v1";
 const PREFERENCES_KEY = "forboyfriend-preferences-v1";
 const CLIENT_KEY = "forboyfriend-client-id";
+const DRAFT_DIRTY_KEY = "forboyfriend-draft-unsaved";
 const DEFAULTS = { color: "#F06292", thickness: 8 };
 
 function readJSON(key, fallback) {
@@ -18,6 +19,10 @@ function getClientId() {
   }
   return id;
 }
+function readDraftDirty() {
+  try { return localStorage.getItem(DRAFT_DIRTY_KEY) === "true"; }
+  catch { return false; }
+}
 
 export function useDrawing() {
   const canvasRef = useRef(null);
@@ -25,10 +30,14 @@ export function useDrawing() {
   const redrawRef = useRef(() => {});
   const latestPngRef = useRef("");
   const syncErrorRef = useRef("");
-  const seedCheckedRef = useRef(false);
-  const clientIdRef = useRef(getClientId());
-  const initial = readJSON(DRAWING_KEY, { strokes: [] });
-  const [strokes, setStrokes] = useState((initial.strokes || []).map(stroke => ({ ...stroke, clientId: stroke.clientId || clientIdRef.current })));
+  const [initialDraftDirty] = useState(readDraftDirty);
+  const dirtyRef = useRef(initialDraftDirty);
+  const [clientId] = useState(getClientId);
+  const clientIdRef = useRef(clientId);
+  const [strokes, setStrokes] = useState(() => {
+    const initial = readJSON(DRAWING_KEY, { strokes: [] });
+    return (initial.strokes || []).map(stroke => ({ ...stroke, clientId: stroke.clientId || clientId }));
+  });
   const strokesRef = useRef(strokes);
   useEffect(() => { strokesRef.current = strokes; }, [strokes]);
   const [redoStrokes, setRedoStrokes] = useState([]);
@@ -45,15 +54,10 @@ export function useDrawing() {
     try { localStorage.setItem(DRAWING_KEY, JSON.stringify({ strokes: next })); }
     catch { setSyncError("This browser is low on storage. The current canvas may not persist after closing the page."); }
   }, []);
-
-  const publish = useCallback(operation => {
-    if (!drawingService.firebaseAvailable) return;
-    drawingService.publish(operation).catch(error => {
-      syncErrorRef.current = error?.message || "The drawing could not be saved to Firebase. Check the database rules and try again.";
-      setConnectionStatus("Unable to sync");
-      setSyncError(syncErrorRef.current);
-    });
-  }, []);
+  const markDraftDirty = value => {
+    dirtyRef.current = value;
+    try { localStorage.setItem(DRAFT_DIRTY_KEY, String(value)); } catch { /* The current in-memory draft remains usable. */ }
+  };
 
   useEffect(() => drawingService.subscribe({
     onStatus: status => {
@@ -65,38 +69,15 @@ export function useDrawing() {
       setSyncError(message);
       setConnectionStatus("Unable to connect");
     },
-    onReady: remoteIsEmpty => {
-      if (seedCheckedRef.current) return;
-      seedCheckedRef.current = true;
-      if (remoteIsEmpty) strokesRef.current.forEach(stroke => publish({ type: "stroke", stroke }));
+    onSnapshot: snapshot => {
+      if (dirtyRef.current || !Array.isArray(snapshot?.strokes)) return;
+      const next = snapshot.strokes;
+      strokesRef.current = next;
+      setStrokes(next);
+      setRedoStrokes([]);
+      persist(next);
     },
-    onOperation: operation => {
-      if (!operation || typeof operation !== "object") return;
-      if (operation.type === "clear") {
-        setStrokes([]);
-        setRedoStrokes([]);
-        persist([]);
-        return;
-      }
-      if (operation.type === "remove" && typeof operation.targetId === "string") {
-        setStrokes(previous => {
-          const next = previous.filter(stroke => stroke.id !== operation.targetId);
-          persist(next);
-          return next;
-        });
-        return;
-      }
-      if ((operation.type === "stroke" || operation.type === "restore") && operation.stroke?.id && Array.isArray(operation.stroke.points)) {
-        setStrokes(previous => {
-          if (previous.some(stroke => stroke.id === operation.stroke.id)) return previous;
-          const next = [...previous, operation.stroke];
-          persist(next);
-          return next;
-        });
-        setRedoStrokes([]);
-      }
-    },
-  }), [persist, publish]);
+  }), [persist]);
   const redraw = useCallback((items = strokes) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -149,6 +130,7 @@ export function useDrawing() {
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    markDraftDirty(true);
     const rect = canvasRef.current.getBoundingClientRect();
     const stroke = {
       id: globalThis.crypto?.randomUUID?.() || `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -177,36 +159,36 @@ export function useDrawing() {
       persist(next);
       return next;
     });
-    publish({ type: "stroke", stroke: finished });
   };
 
   const undo = () => {
     const index = strokes.findLastIndex(stroke => stroke.clientId === clientIdRef.current);
     if (index < 0) return;
     const removed = strokes[index];
+    markDraftDirty(true);
     const next = strokes.filter((_, position) => position !== index);
     setStrokes(next);
     setRedoStrokes(previous => [...previous, removed]);
     persist(next);
-    publish({ type: "remove", targetId: removed.id });
   };
   const redo = () => {
     const restored = redoStrokes.at(-1);
     if (!restored) return;
+    markDraftDirty(true);
     const nextRedo = redoStrokes.slice(0, -1);
     const nextStrokes = [...strokes, restored];
     setRedoStrokes(nextRedo);
     setStrokes(nextStrokes);
     persist(nextStrokes);
-    publish({ type: "restore", stroke: restored });
-  };  const clear = () => {
+  };
+  const clear = () => {
+    markDraftDirty(true);
     setStrokes([]);
     setRedoStrokes([]);
     persist([]);
-    publish({ type: "clear", id: globalThis.crypto?.randomUUID?.() || `clear-${Date.now()}` });
   };
 
-  const save = () => {
+  const save = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return false;
     const output = document.createElement("canvas");
@@ -223,8 +205,29 @@ export function useDrawing() {
       localStorage.setItem("forboyfriend-latest-export", data);
       localStorage.setItem("forboyfriend-latest-at", new Date().toISOString());
     } catch { /* PNG export stays available for this session. */ }
-    setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    return true;
+    const savedAt = new Date().toISOString();
+    setSavedAt(new Date(savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    if (!drawingService.firebaseAvailable) {
+      markDraftDirty(false);
+      return { shared: false };
+    }
+    try {
+      await drawingService.publishSnapshot({
+        strokes,
+        clientId: clientIdRef.current,
+        savedAt,
+      });
+      markDraftDirty(false);
+      syncErrorRef.current = "";
+      setSyncError("");
+      return { shared: true };
+    } catch (error) {
+      markDraftDirty(true);
+      syncErrorRef.current = error?.message || "Could not share this drawing. Check the Firebase rules and try again.";
+      setConnectionStatus("Unable to sync");
+      setSyncError(syncErrorRef.current);
+      throw error;
+    }
   };
   const downloadPng = () => {
     const data = latestPngRef.current || localStorage.getItem("forboyfriend-latest-export");
@@ -240,7 +243,7 @@ export function useDrawing() {
     setCanvas, strokes, color, setColor, thickness, setThickness, tool, setTool,
     pointerDown, pointerMove, pointerUp, undo, redo, clear, save, downloadPng, savedAt,
     connectionStatus, syncError,
-    canUndo: strokes.some(stroke => stroke.clientId === clientIdRef.current),
+    canUndo: strokes.some(stroke => stroke.clientId === clientId),
     canRedo: redoStrokes.length > 0,
   };
 }

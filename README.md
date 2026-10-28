@@ -9,13 +9,15 @@ npm install
 npm run dev
 ```
 
-## Firebase status
+## Firebase and Save-to-share behavior
 
-Firebase Realtime Database is not configured in this checkout. Until it is configured, drawing operations and preferences are saved in the current browser's localStorage and the app displays **Local canvas**. That does not synchronize with another browser or device.
+Firebase Realtime Database is not configured in this checkout. Until it is configured, the app saves drawings and preferences in this browser's localStorage and displays **Local canvas**. It cannot share drawings between devices in this mode.
 
-To prepare Firebase settings, copy `.env.example` to `.env.local` and fill the `VITE_FIREBASE_*` values from the Firebase web app settings. Set `VITE_SHARED_BOARD_ID` to the same board ID for both people. Restart Vite after changing environment variables. The Firebase service boundary is in `src/services/firebase.js`; the current screen remains local-only until Firebase data subscription and conflict-safe operation merging are integrated.
+To configure Firebase, copy `.env.example` to `.env.local` and fill the `VITE_FIREBASE_*` values from the Firebase web app settings. Set `VITE_SHARED_BOARD_ID` to the same board ID for both people. Restart Vite after changing environment variables and set the same values in Vercel's project environment before deploying.
 
-Do not use unrestricted public Realtime Database rules for a private two-person board. A public unauthenticated URL cannot enforce a two-person access boundary by itself; use an authenticated or server-mediated design before enabling remote writes.
+The canvas is private to the current browser while someone draws. Pressing **Save** stores a PNG locally and, when Firebase is connected, publishes the complete vector snapshot to `boards/<board-id>/savedDrawing`. Other connected devices receive that saved snapshot; individual pen, eraser, undo, redo, and clear actions are not sent as they happen. A clear affects the shared view only after saving the blank canvas. The save dialog reports local-only versus shared success accurately.
 
-For live sync, set the `.env.example` values in the Vercel project (all environments that build the app) and redeploy. The same `VITE_SHARED_BOARD_ID` must be used by both devices. The client writes immutable stroke, remove/restore, and clear operations under `boards/<board-id>/operations`; concurrent strokes are appended instead of replacing the full board. Existing local strokes are copied to an empty remote board on the first configured connection. Firebase Realtime Database rules must grant access to that exact board path. Do not use a database-wide public read/write rule; the app surfaces permission failures as a sync error. A public share URL remains accessible to anyone who obtains it.
+Realtime Database rules must allow the intended clients to read and write only the selected board. Never use database-wide public read/write rules for a private two-person board. A public unauthenticated URL cannot enforce a two-person access boundary by itself; use authentication or a server-mediated design before enabling remote writes. A public share URL can be used by anyone who obtains it.
+
+The **Add to Home Screen** control installs a web app shortcut where supported. Native iOS/Android lock-screen widgets cannot be installed by a React + Vite website; the lock-screen screen in the gallery is an in-app preview only.
 

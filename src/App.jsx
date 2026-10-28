@@ -7,6 +7,7 @@ import { useDrawing } from "./hooks/useDrawing";
 import "./App.css";
 export default function App() {
  const [screen,setScreen]=useState("splash"); const drawing=useDrawing();
+ useEffect(()=>{const handle=e=>{e.preventDefault();window.forBoyfriendInstallPrompt=e;};window.addEventListener("beforeinstallprompt",handle);return()=>window.removeEventListener("beforeinstallprompt",handle)},[]);
  useEffect(()=>{const t=setTimeout(()=>setScreen("home"),1550);return()=>clearTimeout(t)},[]);
  useEffect(()=>{const f=e=>{if(e.key==="Escape"&&screen!=="home"&&screen!=="splash")setScreen("home")};window.addEventListener("keydown",f);return()=>window.removeEventListener("keydown",f)},[screen]);
  if(screen==="splash")return <SplashScreen/>;

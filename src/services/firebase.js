@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { get, getDatabase, onChildAdded, onValue, push, ref, serverTimestamp, set } from "firebase/database";
+import { getDatabase, onValue, ref, serverTimestamp, set } from "firebase/database";
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,10 +16,6 @@ function getDatabaseInstance() {
   if (!database) database = getDatabase(getApps().length ? getApp() : initializeApp(config));
   return database;
 }
-function operationsRef(boardId) {
-  const safeId = String(boardId || "our-little-world").replaceAll(".", "-").replaceAll("#", "-").replaceAll("$", "-").replaceAll("[", "-").replaceAll("]", "-").replaceAll("/", "-");
-  return ref(getDatabaseInstance(), `boards/${safeId}/operations`);
-}
 function readableError(error) {
   if (error?.code === "PERMISSION_DENIED" || error?.code === "database/permission-denied") {
     return "Firebase rejected access. Check Realtime Database rules for this board.";
@@ -27,14 +23,14 @@ function readableError(error) {
   return error?.message || "Unable to connect to Firebase.";
 }
 
-export function subscribeToBoard(boardId, { onOperation, onStatus, onError, onReady }) {
+export function subscribeToBoard(boardId, { onSnapshot, onStatus, onError }) {
   if (!firebaseAvailable) {
     onStatus?.("Local canvas");
     return () => {};
   }
   try {
     const db = getDatabaseInstance();
-    const boardRef = operationsRef(boardId);
+    const boardRef = ref(db, `boards/${safeBoardId(boardId)}/savedDrawing`);
     onStatus?.("Connecting...");
     const stopConnection = onValue(ref(db, ".info/connected"), snapshot => {
       onStatus?.(snapshot.val() ? "Connected" : "Offline");
@@ -42,16 +38,13 @@ export function subscribeToBoard(boardId, { onOperation, onStatus, onError, onRe
       onStatus?.("Unable to connect");
       onError?.(readableError(error));
     });
-    const stopOperations = onChildAdded(boardRef, snapshot => {
-      onOperation?.(snapshot.val(), snapshot.key);
+    const stopSnapshot = onValue(boardRef, snapshot => {
+      onSnapshot?.(snapshot.val());
     }, error => {
       onStatus?.("Unable to connect");
       onError?.(readableError(error));
     });
-    get(boardRef)
-      .then(snapshot => onReady?.(!snapshot.exists()))
-      .catch(error => onError?.(readableError(error)));
-    return () => { stopConnection(); stopOperations(); };
+    return () => { stopConnection(); stopSnapshot(); };
   } catch (error) {
     onStatus?.("Unable to connect");
     onError?.(readableError(error));
@@ -59,10 +52,15 @@ export function subscribeToBoard(boardId, { onOperation, onStatus, onError, onRe
   }
 }
 
-export async function publishBoardOperation(boardId, operation) {
-  const operationRef = push(operationsRef(boardId));
-  await set(operationRef, { ...operation, createdAt: serverTimestamp() });
-  return operationRef.key;
+function safeBoardId(boardId) {
+  return String(boardId || "our-little-world").replaceAll(".", "-").replaceAll("#", "-").replaceAll("$", "-").replaceAll("[", "-").replaceAll("]", "-").replaceAll("/", "-");
+}
+
+export async function publishBoardSnapshot(boardId, snapshot) {
+  await set(ref(getDatabaseInstance(), `boards/${safeBoardId(boardId)}/savedDrawing`), {
+    ...snapshot,
+    savedAt: serverTimestamp(),
+  });
 }
 
 

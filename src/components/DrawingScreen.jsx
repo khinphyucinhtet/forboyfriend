@@ -9,9 +9,23 @@ import Toast from "./Toast";
 export default function DrawingScreen({ drawing, onBack }) {
   const [dialog, setDialog] = useState("");
   const [toast, setToast] = useState("");
-  const save = () => {
-    if (drawing.save()) setDialog("save");
-    else setToast("Canvas is not ready yet");
+  const [saving, setSaving] = useState(false);
+  const [savedShared, setSavedShared] = useState(false);
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const result = await drawing.save();
+      if (!result) setToast("Canvas is not ready yet");
+      else {
+        setSavedShared(result.shared);
+        setDialog("save");
+      }
+    } catch {
+      setToast(drawing.syncError || "Could not share the drawing. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
   const clear = () => {
     drawing.clear();
@@ -35,25 +49,25 @@ export default function DrawingScreen({ drawing, onBack }) {
         <button
           className="settings-button"
           aria-label="Canvas settings"
-          onClick={() => setToast(drawing.syncError || (drawing.connectionStatus === "Connected" ? "Changes sync with Firebase" : "Saved on this device until Firebase is configured"))}
+          onClick={() => setToast(drawing.syncError || (drawing.connectionStatus === "Connected" ? "Connected. Press Save to share your drawing." : "Saved on this device until Firebase is configured"))}
         >⚙</button>
         <div className={`connection ${statusClass}`} role="status"><i />{drawing.connectionStatus}</div>
       </header>
       <section className="drawing-page">
         <div className="board-heading">
-          <div><h3>Our shared canvas <span>♡</span></h3><p>Two hearts, one little whiteboard.</p></div>
-          <span className="live-badge"><i />{drawing.connectionStatus === "Connected" ? "Live together" : "Ready to draw"}</span>
+          <div><h3>Our shared canvas <span>♡</span></h3><p>Draw your note, then save it to share.</p></div>
+          <span className="live-badge"><i />{drawing.connectionStatus === "Connected" ? "Save to share" : "Ready to draw"}</span>
         </div>
-        <DrawingToolbar drawing={drawing} onClear={() => setDialog("clear")} onSave={save} />
+        <DrawingToolbar drawing={drawing} onClear={() => setDialog("clear")} onSave={save} saving={saving} />
         <DrawingCanvas drawing={drawing} />
         {drawing.syncError && <p className="sync-error" role="status">{drawing.syncError}</p>}
         <div className="board-footer">
           <span>♡ made for two</span>
-          <span>{drawing.connectionStatus === "Connected" ? "Changes sync live" : "Saved on this device"}</span>
+          <span>{drawing.connectionStatus === "Connected" ? "Press Save to share" : "Saved on this device"}</span>
         </div>
       </section>
       <ClearDialog open={dialog === "clear"} onClose={() => setDialog("")} onConfirm={clear} />
-      <SaveDialog open={dialog === "save"} onClose={() => setDialog("")} onDownload={() => { drawing.downloadPng(); setDialog(""); }} />
+      <SaveDialog open={dialog === "save"} shared={savedShared} onClose={() => setDialog("")} onDownload={() => { drawing.downloadPng(); setDialog(""); }} />
       <Toast message={toast} onDismiss={() => setToast("")} />
     </main>
   );

@@ -9,7 +9,7 @@ export default function WidgetGallery({drawing,onBack,onOpen}) {
  <LockScreenWidget latest={latest} onOpen={onOpen}/><HomeScreenWidget onOpen={onOpen}/>
  <WidgetPreview title="3. Open App"><div className="phone splash-phone"><div className="mini-heart">♡</div><b>ForBoyfriend</b><span>our little world, drawn together</span><button className="primary-button" onClick={onOpen}>Open Our Canvas</button></div></WidgetPreview>
  <WidgetPreview title="4. Drawing Board"><div className="phone drawing-phone"><div className="mini-head">ForBoyfriend ♡<small>{drawing.connectionStatus}</small></div><div className="mini-draw-area" onClick={onOpen}>{drawn}</div><button className="mini-open" onClick={onOpen}>Open interactive board ↗</button></div></WidgetPreview>
- <WidgetPreview title="5. Draw Together"><div className="phone drawing-phone"><div className="mini-head">ForBoyfriend ♡<small>{drawing.connectionStatus === "Connected" ? "Connected" : "Local preview"}</small></div><div className="mini-draw-area">{drawn}{!drawing.strokes.length&&<span>Leave a little love ♡</span>}</div><p>Updates with your current canvas</p></div></WidgetPreview>
+ <WidgetPreview title="5. Draw Together"><div className="phone drawing-phone"><div className="mini-head">ForBoyfriend ♡<small>{drawing.connectionStatus === "Connected" ? "Connected · save to share" : "Local preview"}</small></div><div className="mini-draw-area">{drawn}{!drawing.strokes.length&&<span>Leave a little love ♡</span>}</div><p>Partner sees updates after you press Save</p></div></WidgetPreview>
  </div><p className="gallery-note">These are in-app previews. They do not install native iOS or Android widgets. Current board status: {drawing.connectionStatus}.</p></main>
 }
 
