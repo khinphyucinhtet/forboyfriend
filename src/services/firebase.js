@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getDatabase, onValue, ref, set, serverTimestamp } from "firebase/database";
+import { get, getDatabase, onChildAdded, onValue, push, ref, serverTimestamp, set } from "firebase/database";
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -10,21 +10,59 @@ const config = {
 };
 export const firebaseAvailable = Boolean(config.apiKey && config.databaseURL && config.projectId && config.appId);
 let database;
-function getBoardDatabase() {
-  if (!firebaseAvailable) throw new Error("Firebase is not configured. Add the VITE_FIREBASE_* settings to a local .env file.");
+
+function getDatabaseInstance() {
+  if (!firebaseAvailable) throw new Error("Firebase is not configured. Set the VITE_FIREBASE_* deployment variables.");
   if (!database) database = getDatabase(getApps().length ? getApp() : initializeApp(config));
   return database;
 }
-export function subscribeToBoard(boardId, onBoard, onStatus = () => {}) {
-  if (!firebaseAvailable) { onStatus("Local canvas"); return () => {}; }
-  onStatus("Connecting...");
-  const db = getBoardDatabase();
-  const connectedRef = ref(db, ".info/connected");
-  const stopConnection = onValue(connectedRef, snap => onStatus(snap.val() ? "Connected" : "Offline"), () => onStatus("Offline"));
-  const stopBoard = onValue(ref(db, `boards/${boardId}`), snap => onBoard(snap.val()), error => onStatus(error.message || "Offline"));
-  return () => { stopConnection(); stopBoard(); };
+function operationsRef(boardId) {
+  const safeId = String(boardId || "our-little-world").replaceAll(".", "-").replaceAll("#", "-").replaceAll("$", "-").replaceAll("[", "-").replaceAll("]", "-").replaceAll("/", "-");
+  return ref(getDatabaseInstance(), `boards/${safeId}/operations`);
 }
-export async function saveBoard(boardId, strokes) {
-  const db = getBoardDatabase();
-  await set(ref(db, `boards/${boardId}`), { strokes, updatedAt: serverTimestamp() });
+function readableError(error) {
+  if (error?.code === "PERMISSION_DENIED" || error?.code === "database/permission-denied") {
+    return "Firebase rejected access. Check Realtime Database rules for this board.";
+  }
+  return error?.message || "Unable to connect to Firebase.";
 }
+
+export function subscribeToBoard(boardId, { onOperation, onStatus, onError, onReady }) {
+  if (!firebaseAvailable) {
+    onStatus?.("Local canvas");
+    return () => {};
+  }
+  try {
+    const db = getDatabaseInstance();
+    const boardRef = operationsRef(boardId);
+    onStatus?.("Connecting...");
+    const stopConnection = onValue(ref(db, ".info/connected"), snapshot => {
+      onStatus?.(snapshot.val() ? "Connected" : "Offline");
+    }, error => {
+      onStatus?.("Unable to connect");
+      onError?.(readableError(error));
+    });
+    const stopOperations = onChildAdded(boardRef, snapshot => {
+      onOperation?.(snapshot.val(), snapshot.key);
+    }, error => {
+      onStatus?.("Unable to connect");
+      onError?.(readableError(error));
+    });
+    get(boardRef)
+      .then(snapshot => onReady?.(!snapshot.exists()))
+      .catch(error => onError?.(readableError(error)));
+    return () => { stopConnection(); stopOperations(); };
+  } catch (error) {
+    onStatus?.("Unable to connect");
+    onError?.(readableError(error));
+    return () => {};
+  }
+}
+
+export async function publishBoardOperation(boardId, operation) {
+  const operationRef = push(operationsRef(boardId));
+  await set(operationRef, { ...operation, createdAt: serverTimestamp() });
+  return operationRef.key;
+}
+
+
